@@ -16,34 +16,53 @@
 
 | 方向 | 图片 | 语音 | 文件 |
 |---|---|---|---|
-| **微信 → Agent** | base64 多模态发送，Agent 能"看到" | 微信自动语音转文字 | 下载并提取文本内容 |
-| **Agent → 微信** | 回复含图片URL自动发图 | 文本回复 | 文本回复 |
+| **微信 → Agent** | CDN 下载解密 → base64 多模态 | 微信自动语音转文字 | 下载并提取文本内容 |
+| **Agent → 微信** | 回复含图片 URL 自动发图 | 文本回复 | 文本回复 |
+
+**图片发送流程**：
+- **接收**：用户先发图片（桥缓存），再发文字问题 → 合并为一条多模态消息发给 Agent
+- **发送**：Agent 回复中含 `![](https://...)` 格式图片 URL → 自动作为图片消息发到微信
 
 ## 前置条件
 
 - Node.js >= 22（`nvm install 22`）
 
-## 快速开始（以 Claude Code 为例）
+## 快速开始
 
-**1. 启动 Agent**
+### 方式一：Claude Code
 
 ```bash
+# 1. 启动 Agent
 cd examples/claude-code
 npm install
 node server.mjs
+
+# 2. 连接微信（另一个终端）
+npx wechat-to-anything http://localhost:3000/v1
 ```
 
 > 需要先登录 Claude Code（`claude /login`）或设置 `ANTHROPIC_API_KEY`。
 
-**2. 连接微信**
+### 方式二：OpenAI Codex
 
 ```bash
-npx wechat-to-anything http://localhost:3000/v1
+# 1. 安装并登录 Codex
+npm install -g @openai/codex
+codex login
+
+# 2. 启动 Agent
+cd examples/openai
+node server.mjs
+
+# 3. 连接微信（另一个终端）
+npx wechat-to-anything http://localhost:3001/v1
 ```
 
-首次使用会自动弹出二维码 → 微信扫码 → 完成。
+> 使用 Codex CLI 账号登录（Plus 订阅），不需要 API key。支持图片识别（gpt-5.4）。
 
-之后每次启动直接复用登录凭证，无需重新扫码。
+### 首次使用
+
+终端会弹出二维码 → 微信扫码 → 完成。之后自动复用登录凭证。
 
 ## 接入你自己的 Agent
 
@@ -59,7 +78,36 @@ def chat(request):
 
 然后 `npx wechat-to-anything http://your-agent:8000/v1`。
 
-**图片支持**：如果 Agent 需要处理图片，消息格式遵循 [OpenAI Vision API](https://platform.openai.com/docs/guides/vision)，`content` 为数组，包含 `text` 和 `image_url`（base64）。
+**图片支持**：消息格式遵循 [OpenAI Vision API](https://platform.openai.com/docs/guides/vision)，`content` 为数组：
+
+```json
+{
+  "messages": [{
+    "role": "user",
+    "content": [
+      { "type": "text", "text": "这是什么？" },
+      { "type": "image_url", "image_url": { "url": "data:image/jpeg;base64,..." } }
+    ]
+  }]
+}
+```
+
+**图片回复**：Agent 回复中包含 markdown 图片 `![desc](https://...)` 会自动作为图片消息发到微信。
+
+## 项目结构
+
+```
+wechat-to-anything/
+├── bin/cli.mjs            # CLI 入口
+├── cli/
+│   ├── weixin.mjs         # 微信 ilinkai API（登录/收发消息）
+│   ├── bridge.mjs         # 桥：微信 ←→ Agent（多媒体处理）
+│   └── cdn.mjs            # CDN 加解密（下载图片/语音/文件）
+├── examples/
+│   ├── claude-code/       # Claude Code Agent 示例
+│   └── openai/            # OpenAI Codex Agent 示例（支持图片）
+└── package.json
+```
 
 ## 凭证
 
