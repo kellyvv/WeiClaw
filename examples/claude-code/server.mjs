@@ -1,20 +1,27 @@
 /**
  * Claude Code → OpenAI 兼容 HTTP 服务
- * 
- * 把 Claude Code SDK 包装成标准 HTTP 接口，
- * 供 wechat-to-anything 桥转发微信消息。
- * 
+ *
+ * 通过 `claude --print` 子进程调用 Claude Code，
+ * 包装成标准 HTTP 接口供 wechat-to-anything 连接。
+ *
+ * 前置条件:
+ *   npm install (安装 @anthropic-ai/claude-code)
+ *   设置环境变量 ANTHROPIC_API_KEY
+ *
  * 用法:
- *   npm install
  *   ANTHROPIC_API_KEY=sk-ant-xxx node server.mjs
  */
 
 import { createServer } from "node:http";
+import { spawn } from "node:child_process";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const CLAUDE_BIN = resolve(__dirname, "node_modules/.bin/claude");
 const PORT = process.env.PORT || 3000;
 
 const server = createServer(async (req, res) => {
-  // 只处理 POST /v1/chat/completions
   if (req.method !== "POST" || !req.url.startsWith("/v1/chat/completions")) {
     res.writeHead(404);
     res.end("Not Found");
@@ -23,20 +30,22 @@ const server = createServer(async (req, res) => {
 
   const body = await readBody(req);
   const { messages } = JSON.parse(body);
-  const userMessage = messages?.findLast((m) => m.role === "user")?.content || "";
+  const userMessage =
+    messages?.findLast((m) => m.role === "user")?.content || "";
 
   try {
-    // 调 Claude Code SDK
-    const { claude } = await import("@anthropic-ai/claude-code");
-    const result = await claude(userMessage, { abortController: new AbortController() });
+    const result = await runClaude(userMessage);
 
-    // 返回 OpenAI 兼容格式
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      choices: [{
-        message: { role: "assistant", content: String(result) },
-      }],
-    }));
+    res.end(
+      JSON.stringify({
+        choices: [
+          {
+            message: { role: "assistant", content: result },
+          },
+        ],
+      })
+    );
   } catch (err) {
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: err.message }));
@@ -45,8 +54,35 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`🧬 Claude Code Agent 运行在 http://localhost:${PORT}/v1`);
-  console.log(`   然后运行: npx wechat-to-anything http://localhost:${PORT}/v1`);
+  console.log(
+    `   然后运行: npx wechat-to-anything http://localhost:${PORT}/v1`
+  );
 });
+
+/**
+ * 通过 claude --print 子进程执行，stdin 关闭避免等待
+ */
+function runClaude(prompt) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(CLAUDE_BIN, ["--print", prompt], {
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 120_000,
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (d) => (stdout += d));
+    child.stderr.on("data", (d) => (stderr += d));
+
+    child.on("close", (code) => {
+      if (code !== 0) reject(new Error(stderr || `exit code ${code}`));
+      else resolve(stdout.trim());
+    });
+
+    child.on("error", (err) => reject(err));
+  });
+}
 
 function readBody(req) {
   return new Promise((resolve) => {
