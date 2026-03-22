@@ -34,7 +34,10 @@ export async function start(agentUrl) {
   console.log(pc.dim("📝 写入网关配置..."));
   await writeConfig(agentUrl);
 
-  // 4. 启动 Gateway
+  // 4. 停止已有网关（如果在跑）
+  try { execSync("openclaw gateway stop", { stdio: "ignore" }); } catch {}
+
+  // 5. 启动 Gateway
   console.log(pc.green("🚀 启动网关..."));
   console.log(pc.dim("   微信扫码后即可开始对话"));
   console.log();
@@ -106,22 +109,16 @@ async function writeConfig(agentUrl) {
   }
 
   const config = {
+    gateway: {
+      mode: "local",
+    },
     models: {
       providers: {
-        mode: "merge",
-        list: [
-          {
-            name: "wechat-to-anything",
-            baseUrl: agentUrl,
-            api: "openai-completions",
-            models: [{ id: "default" }],
-          },
-        ],
-      },
-    },
-    agents: {
-      defaults: {
-        models: ["default"],
+        "wechat-to-anything": {
+          baseUrl: agentUrl,
+          api: "openai-completions",
+          models: [{ id: "default", name: "default" }],
+        },
       },
     },
   };
