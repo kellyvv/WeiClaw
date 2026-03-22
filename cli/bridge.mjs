@@ -148,6 +148,62 @@ export async function start(agentUrl) {
             continue;
           }
 
+          // === 语音测试触发器 ===
+          if (text === "语音测试") {
+            console.log(pc.yellow("🎤 语音测试..."));
+            try {
+              const { execSync } = await import("node:child_process");
+              const { readFileSync } = await import("node:fs");
+              // TTS → MP3 → PCM → SILK
+              execSync(`python3 -m edge_tts --text "你好，这是一条AI语音消息" --voice zh-CN-XiaoxiaoNeural --write-media /tmp/tts_bridge.mp3`);
+              execSync(`ffmpeg -y -i /tmp/tts_bridge.mp3 -ar 24000 -ac 1 -f s16le /tmp/tts_bridge.pcm 2>/dev/null`);
+              execSync(`python3 -c "import pilk; pilk.encode('/tmp/tts_bridge.pcm', '/tmp/tts_bridge.silk', pcm_rate=24000, tencent=True)"`);
+              console.log(pc.dim("   TTS + SILK 生成完成"));
+
+              // CDN 上传
+              const { uploadToCdn } = await import("./cdn.mjs");
+              const cdn = await uploadToCdn("/tmp/tts_bridge.silk", from, creds.token, 4);
+              console.log(pc.dim("   CDN 上传成功"));
+
+              // 发送语音 (用 CDN encrypt_query_param)
+              const { sendVoiceMessage } = await import("./weixin.mjs");
+              const aesKeyB64 = Buffer.from(cdn.aeskey).toString("base64");
+              const voiceBody = JSON.stringify({
+                msg: {
+                  from_user_id: "", to_user_id: from,
+                  client_id: (await import("node:crypto")).randomUUID(),
+                  message_type: 2, message_state: 2,
+                  item_list: [{
+                    type: 3,
+                    voice_item: {
+                      media: {
+                        encrypt_query_param: cdn.downloadParam,
+                        aes_key: aesKeyB64,
+                      },
+                      duration: 3,
+                    },
+                  }],
+                  context_token: contextToken,
+                },
+                base_info: {},
+              });
+              const { buildHeaders, BASE_URL: baseUrl } = await import("./weixin.mjs");
+              const vRes = await fetch(`${baseUrl}/ilink/bot/sendmessage`, {
+                method: "POST",
+                headers: buildHeaders(creds.token, voiceBody),
+                body: voiceBody,
+              });
+              console.log(pc.green(`→ [语音] CDN voice status: ${vRes.status}`));
+
+              // 也发一条普通文字确认
+              await sendMessage(creds.token, from, "🎤 语音已发送（CDN模式）", contextToken);
+            } catch (err) {
+              console.error(pc.red(`   语音测试失败: ${err.message}`));
+              await sendMessage(creds.token, from, `⚠️ 语音测试失败: ${err.message}`, contextToken);
+            }
+            continue;
+          }
+
           // 调用 Agent
           try {
             const reply = await callAgent(agentUrl, agentMessages);
