@@ -10,7 +10,16 @@ import { downloadAndDecrypt, downloadMediaToFile } from "./cdn.mjs";
  * 启动桥：WeChat ilinkai API ←→ Agent HTTP
  * 支持文本 + 图片 + 语音 + 文件，双向
  */
-export async function start(agentUrl) {
+export async function start(agents, defaultAgent) {
+  // 兼容旧的单 URL 调用
+  if (typeof agents === "string") {
+    const url = agents;
+    agents = new Map([["default", url]]);
+    defaultAgent = "default";
+  }
+
+  const multiMode = agents.size > 1 || !agents.has("default");
+
   // 1. 读取或获取 WeChat 登录凭证
   let creds = loadCredentials();
   if (!creds) {
@@ -37,19 +46,29 @@ export async function start(agentUrl) {
   }
   console.log(pc.green(`✅ 微信已登录`));
 
-  // 2. 检查 Agent 是否可达
-  console.log(pc.dim(`🔍 检查 Agent: ${agentUrl}`));
-  try {
-    await fetch(agentUrl, { signal: AbortSignal.timeout(5000) });
-    console.log(pc.green("✅ Agent 可达"));
-  } catch {
-    console.error(pc.red(`❌ 无法连接 Agent: ${agentUrl}`));
-    process.exit(1);
+  // 2. 检查所有 Agent 是否可达
+  for (const [name, url] of agents) {
+    console.log(pc.dim(`🔍 检查 Agent ${name}: ${url}`));
+    try {
+      await fetch(url, { signal: AbortSignal.timeout(5000) });
+      console.log(pc.green(`✅ ${name} 可达`));
+    } catch {
+      console.error(pc.red(`❌ 无法连接 ${name}: ${url}`));
+      process.exit(1);
+    }
   }
 
   // 3. 启动消息循环
   console.log(pc.green("🚀 桥已启动（支持文本/图片/语音/文件）"));
-  console.log(pc.dim("   微信消息 → Agent → 微信回复"));
+  if (multiMode) {
+    console.log(pc.dim(`   已注册 ${agents.size} 个 Agent，默认: ${defaultAgent}`));
+    console.log(pc.dim(`   发 @list 查看，@切换 <name> 切换默认`));
+  } else {
+    console.log(pc.dim("   微信消息 → Agent → 微信回复"));
+  }
+
+  // per-user 默认 Agent
+  const userDefaults = new Map();
   console.log();
 
   let getUpdatesBuf = "";
@@ -96,6 +115,29 @@ export async function start(agentUrl) {
             continue; // 不发给 Agent，等文字
 
           } else if (text) {
+            // === 管理命令 ===
+            if (multiMode && text.trim() === "@list") {
+              const lines = [`📋 已注册 ${agents.size} 个 Agent:`];
+              const userDefault = userDefaults.get(from) || defaultAgent;
+              for (const [name, url] of agents) {
+                lines.push(`${name === userDefault ? "  ★" : "  ·"} ${name} → ${url}`);
+              }
+              lines.push(`\n当前默认: ${userDefault}`);
+              lines.push(`发 @切换 <name> 切换默认`);
+              await sendMessage(creds.token, from, lines.join("\n"), contextToken);
+              continue;
+            }
+            if (multiMode && text.trim().startsWith("@切换")) {
+              const target = text.trim().replace(/^@切换\s*/, "").toLowerCase();
+              if (agents.has(target)) {
+                userDefaults.set(from, target);
+                await sendMessage(creds.token, from, `✅ 默认 Agent 已切换为 ${target}`, contextToken);
+              } else {
+                await sendMessage(creds.token, from, `❌ Agent "${target}" 不存在，发 @list 查看可用列表`, contextToken);
+              }
+              continue;
+            }
+
             // 文字消息：检查是否有缓存的图片
             const pending = pendingImages.get(from);
             if (pending && (Date.now() - pending.timestamp) < IMAGE_BUFFER_TTL) {
@@ -216,31 +258,48 @@ export async function start(agentUrl) {
             continue;
           }
 
+          // 解析 @agentName 路由
+          let targetAgent = userDefaults.get(from) || defaultAgent;
+          let routedText = text;
+          if (multiMode && text) {
+            const atMatch = text.match(/^@(\S+)\s+(.*)$/s);
+            if (atMatch && agents.has(atMatch[1].toLowerCase())) {
+              targetAgent = atMatch[1].toLowerCase();
+              routedText = atMatch[2];
+              // 更新 agentMessages 中的文本
+              if (agentMessages.length === 1 && typeof agentMessages[0].content === "string") {
+                agentMessages[0].content = routedText;
+              }
+            }
+          }
+          const agentUrl = agents.get(targetAgent);
+
           // 调用 Agent
           try {
             const reply = await callAgent(agentUrl, agentMessages);
             // 检查回复是否包含图片 URL（markdown 格式）
             const imageMatch = reply.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/);
+            const agentTag = multiMode ? `[${targetAgent}] ` : "";
             if (imageMatch) {
               // Agent 回复了图片 URL → 直接发到微信
               const imageUrl = imageMatch[1];
               const textPart = reply.replace(/!\[.*?\]\(https?:\/\/[^\s)]+\)/g, "").trim();
-              console.log(pc.green(`→ [Agent] [图片] ${imageUrl.slice(0, 60)}`));
+              console.log(pc.green(`→ [${targetAgent}] [图片] ${imageUrl.slice(0, 60)}`));
               try {
-                if (textPart) await sendMessage(creds.token, from, textPart, contextToken);
+                if (textPart) await sendMessage(creds.token, from, agentTag + textPart, contextToken);
                 await sendImageByUrl(creds.token, from, contextToken, imageUrl);
               } catch (err) {
                 console.error(pc.red(`   图片发送失败: ${err.message}`));
-                await sendMessage(creds.token, from, reply, contextToken);
+                await sendMessage(creds.token, from, agentTag + reply, contextToken);
               }
             } else {
               // 纯文本回复
-              console.log(pc.green(`→ [Agent] ${reply.slice(0, 80)}${reply.length > 80 ? "..." : ""}`));
-              await sendMessage(creds.token, from, reply, contextToken);
+              console.log(pc.green(`→ [${targetAgent}] ${reply.slice(0, 80)}${reply.length > 80 ? "..." : ""}`));
+              await sendMessage(creds.token, from, agentTag + reply, contextToken);
             }
           } catch (err) {
-            console.error(pc.red(`   Agent 错误: ${err.message}`));
-            await sendMessage(creds.token, from, `⚠️ Agent 错误: ${err.message}`, contextToken);
+            console.error(pc.red(`   ${targetAgent} 错误: ${err.message}`));
+            await sendMessage(creds.token, from, `⚠️ ${targetAgent} 错误: ${err.message}`, contextToken);
           }
         }
       } catch (err) {
