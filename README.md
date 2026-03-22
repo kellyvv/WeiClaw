@@ -39,21 +39,7 @@
 
 ## 快速开始
 
-### 方式一：Claude Code
-
-```bash
-# 1. 启动 Agent
-cd examples/claude-code
-npm install
-node server.mjs
-
-# 2. 连接微信（另一个终端）
-npx wechat-to-anything http://localhost:3000/v1
-```
-
-> 需要先登录 Claude Code（`claude /login`）或设置 `ANTHROPIC_API_KEY`。
-
-### 方式二：OpenAI Codex
+### 方式一：OpenAI Codex
 
 ```bash
 # 1. 安装并登录 Codex
@@ -68,7 +54,18 @@ node server.mjs
 npx wechat-to-anything http://localhost:3001/v1
 ```
 
-> 使用 Codex CLI 账号登录（Plus 订阅），不需要 API key。支持图片识别（gpt-5.4）。
+> 使用 Codex CLI 账号登录（Plus 订阅），不需要 API key。支持图片识别。
+
+### 方式二：多 Agent
+
+```bash
+npx wechat-to-anything \
+  --agent codex=http://localhost:3001/v1 \
+  --agent gemini=http://localhost:3002/v1 \
+  --default codex
+```
+
+> 微信里发 `@codex 你好` 或 `@gemini 你好` 路由到不同 Agent。
 
 ### 首次使用
 
@@ -90,14 +87,17 @@ def chat(request):
 
 ## 多 Agent 模式
 
-同时接入多个 Agent，通过 `@` 前缀路由消息：
+同时接入多个 Agent，通过 `@` 前缀路由消息。支持 OpenAI 兼容格式和 [ACP (Agent Communication Protocol)](https://agentcommunicationprotocol.dev/) 两种协议：
 
 ```bash
 npx wechat-to-anything \
   --agent codex=http://localhost:3001/v1 \
   --agent gemini=http://localhost:3002/v1 \
+  --agent bee=acp://localhost:8000/chat \
   --default codex
 ```
+
+> `http://` → OpenAI 格式，`acp://` → ACP 协议，自动识别。
 
 微信里使用：
 
@@ -106,6 +106,7 @@ npx wechat-to-anything \
 | `你好` | 发给默认 Agent |
 | `@codex 写个排序` | 路由到 Codex |
 | `@gemini 审查代码` | 路由到 Gemini |
+| `@bee 分析数据` | 路由到 ACP Agent |
 | `@list` | 查看已注册的 Agent |
 | `@切换 gemini` | 切换默认 Agent |
 
