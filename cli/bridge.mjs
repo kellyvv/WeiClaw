@@ -59,11 +59,18 @@ export async function start(agentUrl) {
 
   let getUpdatesBuf = "";
 
+  // 每用户图片缓存：发图片时先存着，等下一条文字消息再合并发出
+  const pendingImages = new Map(); // userId → { base64, timestamp }
+  const IMAGE_BUFFER_TTL = 5 * 60_000; // 5 min 过期
+
   const loop = async () => {
     while (true) {
       try {
         const result = await getUpdates(creds.token, getUpdatesBuf);
         getUpdatesBuf = result.get_updates_buf;
+        if (result.msgs.length > 0) {
+          console.log(pc.dim(`   poll: ${result.msgs.length} 条消息`));
+        }
 
         for (const msg of result.msgs) {
           const from = msg.from_user_id || "";
@@ -77,24 +84,41 @@ export async function start(agentUrl) {
           let agentMessages;
 
           if (media?.type === "image") {
-            // 图片：下载解密 → base64 → 发给 Agent（多模态）
-            console.log(pc.cyan(`← [微信] ${from}: [图片]`));
+            // 图片：下载解密，缓存 base64，等待用户发文字
+            console.log(pc.cyan(`← [微信] ${from}: [图片] (等待文字问题...)`));
             try {
               const buf = await downloadAndDecrypt(media.encryptQueryParam, media.aesKey);
-              const base64 = buf.toString("base64");
+              pendingImages.set(from, {
+                base64: buf.toString("base64"),
+                timestamp: Date.now(),
+                contextToken,
+              });
+            } catch (err) {
+              console.error(pc.red(`   图片下载失败: ${err.message}`));
+            }
+            continue; // 不发给 Agent，等文字
+
+          } else if (text) {
+            // 文字消息：检查是否有缓存的图片
+            const pending = pendingImages.get(from);
+            if (pending && (Date.now() - pending.timestamp) < IMAGE_BUFFER_TTL) {
+              // 有缓存图片 → 合并为多模态消息
+              console.log(pc.cyan(`← [微信] ${from}: [图片+文字] ${text.slice(0, 80)}`));
+              pendingImages.delete(from);
               agentMessages = [{
                 role: "user",
                 content: [
-                  ...(text ? [{ type: "text", text }] : [{ type: "text", text: "请描述这张图片" }]),
-                  { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64}` } },
+                  { type: "text", text },
+                  { type: "image_url", image_url: { url: `data:image/jpeg;base64,${pending.base64}` } },
                 ],
               }];
-            } catch (err) {
-              console.error(pc.red(`   图片下载失败: ${err.message}`));
-              continue;
+            } else {
+              // 纯文本
+              console.log(pc.cyan(`← [微信] ${from}: ${text.slice(0, 80)}${text.length > 80 ? "..." : ""}`));
+              agentMessages = [{ role: "user", content: text }];
             }
+
           } else if (media?.type === "voice") {
-            // 语音：优先使用微信自带转文字
             const voiceText = media.voiceText || text;
             if (voiceText) {
               console.log(pc.cyan(`← [微信] ${from}: [语音] ${voiceText.slice(0, 80)}`));
@@ -105,30 +129,18 @@ export async function start(agentUrl) {
               continue;
             }
           } else if (media?.type === "file") {
-            // 文件：下载并发描述给 Agent
             console.log(pc.cyan(`← [微信] ${from}: [文件] ${media.fileName}`));
             try {
               const { buffer } = await downloadMediaToFile(media.encryptQueryParam, media.aesKey, media.fileName.split(".").pop());
-              // 尝试作为文本读取（小文件）
               if (buffer.length < 100_000) {
                 const content = buffer.toString("utf-8");
-                // 检查是否是文本文件
                 if (!content.includes("\x00")) {
-                  agentMessages = [{
-                    role: "user",
-                    content: `用户发送了文件 "${media.fileName}"，内容如下：\n\n${content}`,
-                  }];
+                  agentMessages = [{ role: "user", content: `用户发送了文件 "${media.fileName}"，内容如下：\n\n${content}` }];
                 } else {
-                  agentMessages = [{
-                    role: "user",
-                    content: `用户发送了文件 "${media.fileName}"（${(buffer.length / 1024).toFixed(1)} KB，二进制文件）`,
-                  }];
+                  agentMessages = [{ role: "user", content: `用户发送了文件 "${media.fileName}"（${(buffer.length / 1024).toFixed(1)} KB，二进制文件）` }];
                 }
               } else {
-                agentMessages = [{
-                  role: "user",
-                  content: `用户发送了文件 "${media.fileName}"（${(buffer.length / 1024).toFixed(1)} KB）`,
-                }];
+                agentMessages = [{ role: "user", content: `用户发送了文件 "${media.fileName}"（${(buffer.length / 1024).toFixed(1)} KB）` }];
               }
             } catch (err) {
               console.error(pc.red(`   文件下载失败: ${err.message}`));
@@ -137,10 +149,6 @@ export async function start(agentUrl) {
           } else if (media?.type === "video") {
             console.log(pc.cyan(`← [微信] ${from}: [视频]`));
             agentMessages = [{ role: "user", content: "用户发送了一段视频" }];
-          } else if (text) {
-            // 纯文本
-            console.log(pc.cyan(`← [微信] ${from}: ${text.slice(0, 80)}${text.length > 80 ? "..." : ""}`));
-            agentMessages = [{ role: "user", content: text }];
           } else {
             continue;
           }
@@ -208,7 +216,7 @@ async function callAgent(agentUrl, messages) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages }),
-    signal: AbortSignal.timeout(120_000),
+    signal: AbortSignal.timeout(300_000),
   });
   if (!res.ok) {
     const text = await res.text();
