@@ -228,8 +228,11 @@ function runOpenClaw(prompt) {
         return;
       }
       try {
-        const data = JSON.parse(stdout);
-        // OpenClaw JSON output: { result: { output: { content: [...] } } }
+        // OpenClaw stdout 可能含有 [plugins] 日志行在 JSON 之前，跳过
+        const jsonStart = stdout.indexOf("\n{");
+        const raw = jsonStart >= 0 ? stdout.slice(jsonStart + 1) : stdout;
+        const data = JSON.parse(raw);
+        // OpenClaw JSON: { result: { output: { content: [{ type:"text", text:"..." }] } } }
         const content = data?.result?.output?.content;
         if (Array.isArray(content)) {
           const texts = content
@@ -237,10 +240,11 @@ function runOpenClaw(prompt) {
             .map(b => b.text);
           if (texts.length) { resolve(texts.join("\n")); return; }
         }
-        // fallback: try common fields
-        resolve((data.reply || data.text || data.content || stdout).trim() || "(empty response)");
+        resolve((data?.result?.output?.text || data?.reply || data?.text || "").trim() || "(empty response)");
       } catch {
-        resolve(stdout.trim() || "(empty response)");
+        // JSON 解析仍然失败，过滤掉日志行返回纯文本
+        const lines = stdout.split("\n").filter(l => !l.match(/^\d{2}:\d{2}:\d{2} \[/));
+        resolve(lines.join("\n").trim() || "(empty response)");
       }
     });
     child.on("error", (err) => reject(new Error(`openclaw CLI 未安装: ${err.message}`)));
