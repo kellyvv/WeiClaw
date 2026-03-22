@@ -50,6 +50,23 @@ npx wechat-to-anything --codex --gemini
 >
 > 也支持直接传 URL：`npx wechat-to-anything http://your-agent:8000/v1`
 
+### 接入 OpenClaw
+
+```bash
+# 1. 安装并配置 OpenClaw
+npm i -g openclaw
+openclaw configure         # 设置模型（如 Gemini / OpenAI）
+
+# 2. 启动 Gateway
+openclaw gateway
+
+# 3. 启动桥（另一个终端）
+npx wechat-to-anything --openclaw
+```
+
+> OpenClaw 的 Gateway 需要先配好模型 provider（运行 `openclaw configure`）。
+> 如果 OpenClaw 已有 `openclaw-weixin` 插件，需先禁用以避免消息冲突。
+
 ### 首次使用
 
 终端会弹出二维码 → 微信扫码 → 完成。之后自动复用登录凭证。
