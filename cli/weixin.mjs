@@ -325,12 +325,18 @@ export async function sendFileMessage(token, to, contextToken, uploaded, fileNam
 export async function sendVideoByUrl(token, to, contextToken, videoUrl) {
   const { uploadVideoWithThumb } = await import("./cdn.mjs");
 
-  // 下载视频
-  const resp = await fetch(videoUrl);
-  if (!resp.ok) throw new Error(`video download failed: ${resp.status}`);
-  const buf = Buffer.from(await resp.arrayBuffer());
-  const tmpPath = join(tmpdir(), `wx-video-${Date.now()}.mp4`);
-  writeFileSync(tmpPath, buf);
+  // 获取视频数据
+  let tmpPath;
+  if (videoUrl.startsWith("/")) {
+    // 本地文件路径，直接使用
+    tmpPath = videoUrl;
+  } else {
+    const resp = await fetch(videoUrl);
+    if (!resp.ok) throw new Error(`video download failed: ${resp.status}`);
+    const buf = Buffer.from(await resp.arrayBuffer());
+    tmpPath = join(tmpdir(), `wx-video-${Date.now()}.mp4`);
+    writeFileSync(tmpPath, buf);
+  }
 
   try {
     // CDN 上传（含缩略图）
@@ -376,7 +382,9 @@ export async function sendVideoByUrl(token, to, contextToken, videoUrl) {
       API_TIMEOUT_MS
     );
   } finally {
-    try { unlinkSync(tmpPath); } catch {}
+    if (!videoUrl.startsWith("/")) {
+      try { unlinkSync(tmpPath); } catch {}
+    }
   }
 }
 
