@@ -72,7 +72,96 @@ export async function downloadMediaToFile(encryptQueryParam, aesKeyBase64, ext =
   return { filePath, buffer: buf };
 }
 
-// ─── 上传 ───────────────────────────────────────────────────────────
+// ─── 图片上传（含缩略图，HD 质量）─────────────────────────────────
+
+/**
+ * 上传图片到 CDN，同时生成并上传缩略图（微信需要缩略图才显示高清）
+ * @returns {{ downloadParam, thumbDownloadParam, aeskey, fileSize, fileSizeCiphertext }}
+ */
+export async function uploadImageWithThumb(filePath, toUserId, token) {
+  const { buildHeaders, BASE_URL } = await import("./weixin.mjs");
+  const { execSync } = await import("child_process");
+
+  const plaintext = await readFile(filePath);
+  const rawsize = plaintext.length;
+  const rawfilemd5 = createHash("md5").update(plaintext).digest("hex");
+  const filesize = aesEcbPaddedSize(rawsize);
+  const filekey = randomBytes(16).toString("hex");
+  const aeskey = randomBytes(16);
+
+  // 生成缩略图
+  const thumbPath = `/tmp/wxta_thumb_${Date.now()}.jpg`;
+  try {
+    execSync(`sips --resampleWidth 120 "${filePath}" --out "${thumbPath}" 2>/dev/null`);
+  } catch {
+    // sips 失败时用原图当缩略图
+    await writeFile(thumbPath, plaintext);
+  }
+  const thumb = await readFile(thumbPath);
+
+  // 1. getUploadUrl（带缩略图信息）
+  const uploadBody = JSON.stringify({
+    filekey,
+    media_type: 1, // IMAGE
+    to_user_id: toUserId,
+    rawsize,
+    rawfilemd5,
+    filesize,
+    thumb_rawsize: thumb.length,
+    thumb_rawfilemd5: createHash("md5").update(thumb).digest("hex"),
+    thumb_filesize: aesEcbPaddedSize(thumb.length),
+    no_need_thumb: false,
+    aeskey: aeskey.toString("hex"),
+    base_info: {},
+  });
+
+  const uploadRes = await fetch(`${BASE_URL}/ilink/bot/getuploadurl`, {
+    method: "POST",
+    headers: buildHeaders(token, uploadBody),
+    body: uploadBody,
+  });
+  if (!uploadRes.ok) throw new Error(`getUploadUrl failed: ${uploadRes.status}`);
+  const uploadJson = await uploadRes.json();
+  if (!uploadJson.upload_param) throw new Error(`getUploadUrl: no upload_param`);
+
+  // 2. 上传原图
+  const origCipher = encryptAesEcb(plaintext, aeskey);
+  const origUrl = `${CDN_BASE_URL}/upload?encrypted_query_param=${encodeURIComponent(uploadJson.upload_param)}&filekey=${encodeURIComponent(filekey)}`;
+  const origRes = await fetch(origUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: new Uint8Array(origCipher),
+  });
+  if (origRes.status !== 200) throw new Error(`CDN upload orig failed: ${origRes.status}`);
+  const downloadParam = origRes.headers.get("x-encrypted-query-param") || origRes.headers.get("x-encrypted-param");
+  if (!downloadParam) throw new Error("CDN upload: missing download param");
+
+  // 3. 上传缩略图
+  let thumbDownloadParam = null;
+  if (uploadJson.thumb_upload_param) {
+    const thumbCipher = encryptAesEcb(thumb, aeskey);
+    const thumbUrl = `${CDN_BASE_URL}/upload?encrypted_query_param=${encodeURIComponent(uploadJson.thumb_upload_param)}&filekey=${encodeURIComponent(filekey)}`;
+    const thumbRes = await fetch(thumbUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: new Uint8Array(thumbCipher),
+    });
+    if (thumbRes.status === 200) {
+      thumbDownloadParam = thumbRes.headers.get("x-encrypted-query-param") || thumbRes.headers.get("x-encrypted-param");
+    }
+  }
+
+  return {
+    downloadParam,
+    thumbDownloadParam,
+    aeskey: aeskey.toString("hex"),
+    fileSize: rawsize,
+    fileSizeCiphertext: filesize,
+    filekey,
+  };
+}
+
+// ─── 通用上传 ───────────────────────────────────────────────────────
 
 /**
  * 上传文件到微信 CDN

@@ -7,7 +7,7 @@ const token = creds.token;
 const to = creds.userId;
 
 // 测试图片 URL（可替换为任意图片地址）
-const imageUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/PNG_transparency_demonstration_1.png/280px-PNG_transparency_demonstration_1.png";
+const imageUrl = "https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png";
 
 // 获取 contextToken
 const { getUpdates, buildHeaders, BASE_URL } = await import("../cli/weixin.mjs");

@@ -187,28 +187,49 @@ export async function sendMessage(token, to, text, contextToken) {
 }
 
 /**
- * 发送图片消息（下载 → CDN 上传 → 发送）
+ * 发送图片消息（下载 → 生成缩略图 → CDN 上传原图+缩略图 → 发送 HD）
  */
 export async function sendImageByUrl(token, to, contextToken, imageUrl) {
-  const { writeFile: wf } = await import("node:fs/promises");
+  const { writeFile: wf, readFile: rf } = await import("node:fs/promises");
 
   // 获取图片数据
-  let buf;
-  if (imageUrl.startsWith("data:")) {
-    const b64 = imageUrl.split(",")[1];
-    buf = Buffer.from(b64, "base64");
+  let tmpPath;
+  if (imageUrl.startsWith("/")) {
+    // 本地文件路径，直接使用
+    tmpPath = imageUrl;
   } else {
-    const resp = await fetch(imageUrl);
-    if (!resp.ok) throw new Error(`图片下载失败: ${resp.status}`);
-    buf = Buffer.from(await resp.arrayBuffer());
+    let buf;
+    if (imageUrl.startsWith("data:")) {
+      const b64 = imageUrl.split(",")[1];
+      buf = Buffer.from(b64, "base64");
+    } else {
+      const resp = await fetch(imageUrl);
+      if (!resp.ok) throw new Error(`图片下载失败: ${resp.status}`);
+      buf = Buffer.from(await resp.arrayBuffer());
+    }
+    tmpPath = "/tmp/wxta_image_send.jpg";
+    await wf(tmpPath, buf);
   }
-  const tmpPath = "/tmp/wxta_image_send.jpg";
-  await wf(tmpPath, buf);
 
-  // CDN 上传 (mediaType=1 = IMAGE)
-  const { uploadToCdn } = await import("./cdn.mjs");
-  const cdn = await uploadToCdn(tmpPath, to, token, 1);
+  // CDN 上传（含缩略图，确保高清显示）
+  const { uploadImageWithThumb } = await import("./cdn.mjs");
+  const cdn = await uploadImageWithThumb(tmpPath, to, token);
   const aesKeyB64 = Buffer.from(cdn.aeskey).toString("base64");
+
+  // 构造 image_item
+  const imageItem = {
+    media: {
+      encrypt_query_param: cdn.downloadParam,
+      aes_key: aesKeyB64,
+    },
+    mid_size: cdn.fileSizeCiphertext,
+  };
+  if (cdn.thumbDownloadParam) {
+    imageItem.thumb_media = {
+      encrypt_query_param: cdn.thumbDownloadParam,
+      aes_key: aesKeyB64,
+    };
+  }
 
   // 发送
   await apiPost(
@@ -220,15 +241,7 @@ export async function sendImageByUrl(token, to, contextToken, imageUrl) {
         client_id: crypto.randomUUID(),
         message_type: 2,
         message_state: 2,
-        item_list: [{
-          type: 2, // IMAGE
-          image_item: {
-            media: {
-              encrypt_query_param: cdn.downloadParam,
-              aes_key: aesKeyB64,
-            },
-          },
-        }],
+        item_list: [{ type: 2, image_item: imageItem }],
         context_token: contextToken,
       },
       base_info: {},
