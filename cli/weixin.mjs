@@ -192,10 +192,16 @@ export async function sendMessage(token, to, text, contextToken) {
 export async function sendImageByUrl(token, to, contextToken, imageUrl) {
   const { writeFile: wf } = await import("node:fs/promises");
 
-  // 下载图片
-  const resp = await fetch(imageUrl);
-  if (!resp.ok) throw new Error(`图片下载失败: ${resp.status}`);
-  const buf = Buffer.from(await resp.arrayBuffer());
+  // 获取图片数据
+  let buf;
+  if (imageUrl.startsWith("data:")) {
+    const b64 = imageUrl.split(",")[1];
+    buf = Buffer.from(b64, "base64");
+  } else {
+    const resp = await fetch(imageUrl);
+    if (!resp.ok) throw new Error(`图片下载失败: ${resp.status}`);
+    buf = Buffer.from(await resp.arrayBuffer());
+  }
   const tmpPath = "/tmp/wxta_image_send.jpg";
   await wf(tmpPath, buf);
 

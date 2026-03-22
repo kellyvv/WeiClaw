@@ -292,8 +292,8 @@ export async function start(agents, defaultAgent) {
 
             // 检查回复是否包含 [audio:path/url]
             const audioMatch = reply.match(/\[audio:(.*?)\]/);
-            // 检查回复是否包含图片 URL（markdown 格式）
-            const imageMatch = reply.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/);
+            // 检查回复是否包含图片（markdown 格式，支持 URL 和 data URI）
+            const imageMatch = reply.match(/!\[.*?\]\(((?:https?:\/\/|data:image\/)[^\s)]+)\)/);
 
             if (audioMatch) {
               const audioSrc = audioMatch[1];
