@@ -39,34 +39,19 @@
 
 ## 快速开始
 
-### 方式一：OpenAI Codex
-
 ```bash
-npm install -g @openai/codex && codex login
-cd examples/openai && node server.mjs
-# 另一个终端
-npx wechat-to-anything http://localhost:3001/v1
+# 一条命令，选你喜欢的 Agent：
+npx wechat-to-anything --codex     # OpenAI Codex
+npx wechat-to-anything --gemini    # Google Gemini
+npx wechat-to-anything --claude    # Claude Code
+
+# 多 Agent 同时用：
+npx wechat-to-anything --codex --gemini
 ```
 
-### 方式二：Google Gemini CLI
-
-```bash
-npm install -g @google/gemini-cli
-cd examples/gemini && node server.mjs
-# 另一个终端
-npx wechat-to-anything http://localhost:3002/v1
-```
-
-### 方式三：多 Agent
-
-```bash
-npx wechat-to-anything \
-  --agent codex=http://localhost:3001/v1 \
-  --agent gemini=http://localhost:3002/v1 \
-  --default codex
-```
-
-> 微信里发 `@codex 你好` 或 `@gemini 你好` 路由到不同 Agent。
+> 需要先安装对应 CLI：`npm i -g @openai/codex` / `@google/gemini-cli` / `@anthropic-ai/claude-code`
+>
+> 也支持直接传 URL：`npx wechat-to-anything http://your-agent:8000/v1`
 
 ### 首次使用
 
