@@ -10,6 +10,10 @@
 
 基于[腾讯官方微信 ClawBot](https://github.com/nicepkg/openclaw-weixin) 实现微信连接，你的 Agent 只需暴露一个 OpenAI 兼容的 HTTP 接口。
 
+## 前置条件
+
+- Node.js >= 22（`nvm install 22`）
+
 ## 快速开始
 
 ### 1. 启动你的 Agent
