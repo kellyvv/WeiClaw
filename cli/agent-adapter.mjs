@@ -36,17 +36,16 @@ export async function checkAgent(url) {
   if (url.startsWith("cli://")) {
     const name = url.replace("cli://", "");
     const cmd = { codex: "codex", gemini: "gemini", claude: "claude", openclaw: "openclaw" }[name] || name;
+    const installHint = { codex: "@openai/codex", gemini: "@google/gemini-cli", claude: "@anthropic-ai/claude-code", openclaw: "openclaw" }[name] || cmd;
     return new Promise((resolve, reject) => {
       const child = crossSpawn(cmd, ["--version"], { timeout: 5000 });
-      child.on("error", (err) => reject(new Error(`${cmd} CLI 未安装（npm install -g ${{
-          codex: "@openai/codex", gemini: "@google/gemini-cli", claude: "@anthropic-ai/claude-code", openclaw: "openclaw"
-        }[name] || cmd}）`)));
-      child.on("close", (code) => {
-        if (code !== 0) reject(new Error(`${cmd} CLI 未安装（npm install -g ${{
-          codex: "@openai/codex", gemini: "@google/gemini-cli", claude: "@anthropic-ai/claude-code", openclaw: "openclaw"
-        }[name] || cmd}）`));
-        else resolve();
+      // 只有 ENOENT（找不到二进制）才说明未安装；
+      // 非零退出码可能只是 CLI 不支持 --version（如 gemini），但已安装
+      child.on("error", (err) => {
+        if (err.code === "ENOENT") reject(new Error(`${cmd} CLI 未安装（npm install -g ${installHint}）`));
+        else reject(err);
       });
+      child.on("close", () => resolve());
     });
   }
   await fetch(url, { signal: AbortSignal.timeout(5000) });
