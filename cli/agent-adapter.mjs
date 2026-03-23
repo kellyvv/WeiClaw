@@ -9,7 +9,7 @@
  */
 
 import { writeFile, readFile, unlink, mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
 import crossSpawn from "cross-spawn";
@@ -200,12 +200,20 @@ function runGemini(prompt) {
 
 function runClaude(prompt, imagePaths = []) {
   return new Promise((resolve, reject) => {
-    const args = ["--print", prompt];
-    for (const img of imagePaths) args.push("--file", img);
+    const args = ["--print"];
+    let input = prompt;
+    if (imagePaths.length > 0) {
+      const dirs = [...new Set(imagePaths.map((p) => dirname(p)))];
+      args.push("--allowedTools", "Read");
+      for (const dir of dirs) args.push("--add-dir", dir);
+      input += "\n\n图片文件路径：\n" + imagePaths.join("\n");
+    }
     const child = crossSpawn("claude", args, {
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
       timeout: 300_000,
     });
+    child.stdin.write(input);
+    child.stdin.end();
     let stdout = "", stderr = "";
     child.stdout.on("data", (d) => (stdout += d));
     child.stderr.on("data", (d) => (stderr += d));
