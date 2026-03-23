@@ -17,10 +17,10 @@ import { randomBytes } from "node:crypto";
 /**
  * 统一调用接口 — 根据 URL 自动选择适配器
  */
-export async function callAgentAuto(url, messages) {
-  if (url.startsWith("acp://")) return callACP(url, messages);
+export async function callAgentAuto(url, messages, userId) {
+  if (url.startsWith("acp://")) return callACP(url, messages, userId);
   if (url.startsWith("cli://")) return callCLI(url, messages);
-  return callOpenAI(url, messages);
+  return callOpenAI(url, messages, userId);
 }
 
 /**
@@ -50,11 +50,11 @@ export async function checkAgent(url) {
 
 // ========== OpenAI 适配器 ==========
 
-async function callOpenAI(agentUrl, messages) {
+async function callOpenAI(agentUrl, messages, userId) {
   const res = await fetch(`${agentUrl}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, user: userId || undefined }),
     signal: AbortSignal.timeout(300_000),
   });
   if (!res.ok) {
@@ -74,7 +74,7 @@ function parseACPUrl(acpUrl) {
   return { httpUrl: `http://${withoutScheme.slice(0, slashIdx)}`, agentName: withoutScheme.slice(slashIdx + 1) };
 }
 
-async function callACP(acpUrl, messages) {
+async function callACP(acpUrl, messages, userId) {
   const { httpUrl, agentName } = parseACPUrl(acpUrl);
   const input = messages.map((msg) => {
     if (typeof msg.content === "string") {

@@ -325,7 +325,7 @@ export async function start(agents, defaultAgent) {
           // 调用 Agent
           try {
             if (typing) await typing.onReplyStart();
-            const reply = await callAgentAuto(agentUrl, agentMessages);
+            const reply = await callAgentAuto(agentUrl, agentMessages, from);
             if (typing) typing.onIdle();
             const agentTag = multiMode ? `[${targetAgent}] ` : "";
 
