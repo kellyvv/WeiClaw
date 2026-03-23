@@ -66,13 +66,17 @@ npx wechat-to-anything http://your-agent:8000/v1
 
 ### Dependencies
 
-| Dependency | Purpose | Install |
-|------------|---------|---------|
-| **Node.js >= 22** | Required | `nvm install 22` |
-| **ffmpeg** | Voice / video sending | `brew install ffmpeg` (macOS)<br>`apt install ffmpeg` (Linux) |
-| **pilk** | Voice sending (SILK encoding) | `pip install pilk` |
+```bash
+# Node.js >= 22
+nvm install 22
 
-> Only sending text and images? Node.js is all you need — `ffmpeg` and `pilk` are optional.
+# ffmpeg (voice / video sending)
+brew install ffmpeg        # macOS
+apt install ffmpeg         # Linux
+
+# pilk (voice SILK encoding)
+pip install pilk
+```
 
 ## How It Works
 

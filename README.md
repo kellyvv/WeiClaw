@@ -66,13 +66,17 @@ npx wechat-to-anything http://your-agent:8000/v1
 
 ### 环境依赖
 
-| 依赖 | 用途 | 安装 |
-|------|------|------|
-| **Node.js >= 22** | 必需 | `nvm install 22` |
-| **ffmpeg** | 语音 / 视频发送 | `brew install ffmpeg`（macOS）<br>`apt install ffmpeg`（Linux） |
-| **pilk** | 语音发送（SILK 转码） | `pip install pilk` |
+```bash
+# Node.js >= 22
+nvm install 22
 
-> 只发文本和图片？只需 Node.js 即可，`ffmpeg` 和 `pilk` 是可选的。
+# ffmpeg（语音 / 视频发送）
+brew install ffmpeg        # macOS
+apt install ffmpeg         # Linux
+
+# pilk（语音 SILK 转码）
+pip install pilk
+```
 
 ## 原理
 
