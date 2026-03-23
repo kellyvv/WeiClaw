@@ -128,7 +128,7 @@ export async function start(agents, defaultAgent, { port = 9099 } = {}) {
       const textPart = content.replace(/\[audio:.*?\]/g, "").trim();
       console.log(pc.green(`→ [send] [语音] ${audioSrc.slice(0, 60)}`));
       try {
-        const { execSync } = await import("node:child_process");
+        const { execFileSync } = await import("node:child_process");
         const { statSync, writeFileSync } = await import("node:fs");
         const { uploadToCdn } = await import("./cdn.mjs");
         const { buildHeaders, BASE_URL: baseUrl } = await import("./weixin.mjs");
@@ -141,8 +141,8 @@ export async function start(agents, defaultAgent, { port = 9099 } = {}) {
           audioFile = "/tmp/wxta_audio_in.mp3";
         }
 
-        execSync(`ffmpeg -y -i "${audioFile}" -ar 16000 -ac 1 -f s16le /tmp/wxta_audio.pcm 2>/dev/null`);
-        execSync(`python3 -c "import pilk; pilk.encode('/tmp/wxta_audio.pcm', '/tmp/wxta_audio.silk', pcm_rate=16000, tencent=True)"`);
+        execFileSync("ffmpeg", ["-y", "-i", audioFile, "-ar", "16000", "-ac", "1", "-f", "s16le", "/tmp/wxta_audio.pcm"], { stdio: "ignore" });
+        execFileSync("python3", ["-c", "import pilk; pilk.encode('/tmp/wxta_audio.pcm', '/tmp/wxta_audio.silk', pcm_rate=16000, tencent=True)"]);
         const pcmSize = statSync("/tmp/wxta_audio.pcm").size;
         const durationMs = Math.round((pcmSize / 32000) * 1000);
 
@@ -240,7 +240,16 @@ export async function start(agents, defaultAgent, { port = 9099 } = {}) {
 
     if (req.method === "POST" && req.url === "/api/send") {
       let body = "";
-      for await (const chunk of req) body += chunk;
+      let bodySize = 0;
+      for await (const chunk of req) {
+        bodySize += chunk.length;
+        if (bodySize > 1_048_576) { // 1MB limit
+          res.writeHead(413, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "body too large (max 1MB)" }));
+          return;
+        }
+        body += chunk;
+      }
       try {
         const { to, content } = JSON.parse(body);
         if (!to || !content) {
@@ -359,12 +368,6 @@ export async function start(agents, defaultAgent, { port = 9099 } = {}) {
             }
 
           } else if (media?.type === "voice") {
-            // 打印完整 voice_item 结构，用于对照发送格式
-            const voiceItem = (msg.item_list || []).find(i => i.type === 3)?.voice_item;
-            if (voiceItem) {
-              console.log(pc.yellow("📋 收到的 voice_item 完整结构:"));
-              console.log(JSON.stringify(voiceItem, null, 2));
-            }
             const voiceText = media.voiceText || text;
             if (voiceText) {
               console.log(pc.cyan(`← [微信] ${from}: [语音] ${voiceText.slice(0, 80)}`));
@@ -399,65 +402,6 @@ export async function start(agents, defaultAgent, { port = 9099 } = {}) {
             continue;
           }
 
-          // === 语音测试触发器 ===
-          if (text === "语音测试") {
-            console.log(pc.yellow("🎤 语音测试..."));
-            try {
-              const { execSync } = await import("node:child_process");
-              const { statSync } = await import("node:fs");
-              const crypto = await import("node:crypto");
-              const { buildHeaders, BASE_URL: baseUrl } = await import("./weixin.mjs");
-              const { uploadToCdn } = await import("./cdn.mjs");
-
-              // TTS → MP3 → PCM(16kHz) → SILK
-              execSync(`python3 -m edge_tts --text "你好，这是一条AI语音消息测试" --voice zh-CN-XiaoxiaoNeural --write-media /tmp/tts_bridge.mp3`);
-              execSync(`ffmpeg -y -i /tmp/tts_bridge.mp3 -ar 16000 -ac 1 -f s16le /tmp/tts_bridge.pcm 2>/dev/null`);
-              execSync(`python3 -c "import pilk; pilk.encode('/tmp/tts_bridge.pcm', '/tmp/tts_bridge.silk', pcm_rate=16000, tencent=True)"`);
-              const pcmSize = statSync("/tmp/tts_bridge.pcm").size;
-              const durationMs = Math.round((pcmSize / 32000) * 1000);
-              console.log(pc.dim(`   TTS+SILK 完成 (duration=${durationMs}ms)`));
-
-              // CDN 上传 (mediaType=4 = 语音)
-              const cdn = await uploadToCdn("/tmp/tts_bridge.silk", from, creds.token, 4);
-              const aesKeyB64 = Buffer.from(cdn.aeskey).toString("base64");
-              console.log(pc.dim(`   CDN 上传成功 (mediaType=4)`));
-
-              // 发送语音消息
-              const body = JSON.stringify({
-                msg: {
-                  from_user_id: "", to_user_id: from,
-                  client_id: crypto.randomUUID(),
-                  message_type: 2, message_state: 2,
-                  item_list: [{
-                    type: 3,
-                    voice_item: {
-                      media: {
-                        encrypt_query_param: cdn.downloadParam,
-                        aes_key: aesKeyB64,
-                      },
-                      encode_type: 4,
-                      bits_per_sample: 16,
-                      sample_rate: 16000,
-                      playtime: durationMs,
-                    },
-                  }],
-                  context_token: contextToken,
-                },
-                base_info: {},
-              });
-              const res = await fetch(`${baseUrl}/ilink/bot/sendmessage`, {
-                method: "POST",
-                headers: buildHeaders(creds.token, body),
-                body,
-              });
-              console.log(pc.green(`→ [语音] status: ${res.status}`));
-              await sendMessage(creds.token, from, `🎤 语音已发送 (${durationMs}ms)`, contextToken);
-            } catch (err) {
-              console.error(pc.red(`   语音测试失败: ${err.message}`));
-              await sendMessage(creds.token, from, `⚠️ 语音测试失败: ${err.message}`, contextToken);
-            }
-            continue;
-          }
 
           // 解析 @agentName 路由
           let targetAgent = userDefaults.get(from) || defaultAgent;

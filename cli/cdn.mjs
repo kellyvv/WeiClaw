@@ -80,7 +80,7 @@ export async function downloadMediaToFile(encryptQueryParam, aesKeyBase64, ext =
  */
 export async function uploadImageWithThumb(filePath, toUserId, token) {
   const { buildHeaders, BASE_URL } = await import("./weixin.mjs");
-  const { execSync } = await import("child_process");
+  const { execFileSync } = await import("child_process");
 
   const plaintext = await readFile(filePath);
   const rawsize = plaintext.length;
@@ -92,7 +92,7 @@ export async function uploadImageWithThumb(filePath, toUserId, token) {
   // 生成缩略图
   const thumbPath = `/tmp/wxta_thumb_${Date.now()}.jpg`;
   try {
-    execSync(`sips --resampleWidth 120 "${filePath}" --out "${thumbPath}" 2>/dev/null`);
+    execFileSync("sips", ["--resampleWidth", "120", filePath, "--out", thumbPath], { stdio: "ignore" });
   } catch {
     // sips 失败时用原图当缩略图
     await writeFile(thumbPath, plaintext);
@@ -102,7 +102,7 @@ export async function uploadImageWithThumb(filePath, toUserId, token) {
   // 获取缩略图尺寸
   let thumbWidth = 120, thumbHeight = 120;
   try {
-    const sipsOut = execSync(`sips -g pixelWidth -g pixelHeight "${thumbPath}" 2>/dev/null`).toString();
+    const sipsOut = execFileSync("sips", ["-g", "pixelWidth", "-g", "pixelHeight", thumbPath], { encoding: "utf-8", stdio: ["pipe", "pipe", "ignore"] });
     const wm = sipsOut.match(/pixelWidth:\s*(\d+)/);
     const hm = sipsOut.match(/pixelHeight:\s*(\d+)/);
     if (wm) thumbWidth = parseInt(wm[1]);
@@ -183,7 +183,7 @@ export async function uploadImageWithThumb(filePath, toUserId, token) {
  */
 export async function uploadVideoWithThumb(filePath, toUserId, token) {
   const { buildHeaders, BASE_URL } = await import("./weixin.mjs");
-  const { execSync } = await import("child_process");
+  const { execFileSync } = await import("child_process");
 
   const plaintext = await readFile(filePath);
   const rawsize = plaintext.length;
@@ -195,14 +195,14 @@ export async function uploadVideoWithThumb(filePath, toUserId, token) {
   // 获取视频时长
   let playLength = 10;
   try {
-    const dur = execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${filePath}"`, { encoding: "utf-8" }).trim();
+    const dur = execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", filePath], { encoding: "utf-8" }).trim();
     playLength = Math.round(parseFloat(dur));
   } catch {}
 
   // 生成缩略图（第一帧）
   const thumbPath = `/tmp/wxta_video_thumb_${Date.now()}.jpg`;
   try {
-    execSync(`ffmpeg -y -i "${filePath}" -vframes 1 -vf "scale=224:-1" -q:v 5 "${thumbPath}" 2>/dev/null`);
+    execFileSync("ffmpeg", ["-y", "-i", filePath, "-vframes", "1", "-vf", "scale=224:-1", "-q:v", "5", thumbPath], { stdio: "ignore" });
   } catch {
     // ffmpeg 失败时创建空白缩略图（sendmessage 仍需 thumb 注册）
     const { writeFileSync } = await import("node:fs");
@@ -213,7 +213,7 @@ export async function uploadVideoWithThumb(filePath, toUserId, token) {
   // 缩略图尺寸
   let thumbWidth = 224, thumbHeight = 224;
   try {
-    const sipsOut = execSync(`sips -g pixelWidth -g pixelHeight "${thumbPath}" 2>/dev/null`).toString();
+    const sipsOut = execFileSync("sips", ["-g", "pixelWidth", "-g", "pixelHeight", thumbPath], { encoding: "utf-8", stdio: ["pipe", "pipe", "ignore"] });
     const wm = sipsOut.match(/pixelWidth:\s*(\d+)/);
     const hm = sipsOut.match(/pixelHeight:\s*(\d+)/);
     if (wm) thumbWidth = parseInt(wm[1]);
