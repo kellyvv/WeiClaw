@@ -34,7 +34,7 @@
 ## 特性
 
 - 🔌 **零依赖接入** — `npx` 一条命令，无需 clone、无需配置
-- 🧠 **Agent 无关** — 支持任何 OpenAI 兼容 API（Codex / Gemini / Claude / 自建）
+- 🧠 **Agent 无关** — 支持任何 OpenAI 兼容 API（Codex / Gemini / Claude / OpenCode / 自建）
 - 📡 **全模态** — 文本、图片、语音、视频、文件，双向全覆盖
 - 🤖 **多 Agent** — 同时接入多个 Agent，`@` 路由切换
 - ⌨️ **打字指示器** — Agent 思考时显示"对方正在输入"
@@ -58,6 +58,9 @@ npx wechat-to-anything --codex     # OpenAI Codex
 npx wechat-to-anything --gemini    # Google Gemini
 npx wechat-to-anything --claude    # Claude Code
 npx wechat-to-anything --openclaw  # OpenClaw
+
+# 或用 examples 模板接入更多 Agent：
+cd examples/opencode && node server.mjs  # OpenCode（含免费模型）
 
 # 或直接传 URL：
 npx wechat-to-anything http://your-agent:8000/v1
@@ -132,6 +135,8 @@ Agent 回复中包含特定格式即可自动发送多媒体：
 ```
 
 > 示例：[image-test.mjs](examples/image-test.mjs) · [voice-test.mjs](examples/voice-test.mjs) · [video-test-local.mjs](examples/video-test-local.mjs) · [file-test.mjs](examples/file-test.mjs)
+>
+> Agent 模板：[claude-code](examples/claude-code/) · [opencode](examples/opencode/) · [openai](examples/openai/)
 
 ## 多 Agent 模式
 

@@ -34,7 +34,7 @@
 ## Features
 
 - 🔌 **Zero-config setup** — One `npx` command, no cloning, no configuration
-- 🧠 **Agent-agnostic** — Works with any OpenAI-compatible API (Codex / Gemini / Claude / custom)
+- 🧠 **Agent-agnostic** — Works with any OpenAI-compatible API (Codex / Gemini / Claude / OpenCode / custom)
 - 📡 **Full multimodal** — Text, images, voice, video, files — bidirectional
 - 🤖 **Multi-Agent** — Connect multiple Agents simultaneously, route with `@` prefix
 - ⌨️ **Typing indicator** — Shows "typing..." while Agent is thinking
@@ -58,6 +58,9 @@ npx wechat-to-anything --codex     # OpenAI Codex
 npx wechat-to-anything --gemini    # Google Gemini
 npx wechat-to-anything --claude    # Claude Code
 npx wechat-to-anything --openclaw  # OpenClaw
+
+# Or use example templates for more Agents:
+cd examples/opencode && node server.mjs  # OpenCode (free models included)
 
 # Or pass a URL directly:
 npx wechat-to-anything http://your-agent:8000/v1
@@ -132,6 +135,8 @@ Include specific formats in Agent responses to automatically send media:
 ```
 
 > Examples: [image-test.mjs](examples/image-test.mjs) · [voice-test.mjs](examples/voice-test.mjs) · [video-test-local.mjs](examples/video-test-local.mjs) · [file-test.mjs](examples/file-test.mjs)
+>
+> Agent templates: [claude-code](examples/claude-code/) · [opencode](examples/opencode/) · [openai](examples/openai/)
 
 ## Multi-Agent Mode
 
