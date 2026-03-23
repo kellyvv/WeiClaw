@@ -14,6 +14,9 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
 
+// Windows 上 npm 全局安装生成 .cmd，execFile/spawn 需要 shell: true 才能找到
+const IS_WIN = process.platform === "win32";
+
 /**
  * 统一调用接口 — 根据 URL 自动选择适配器
  */
@@ -37,7 +40,7 @@ export async function checkAgent(url) {
     const name = url.replace("cli://", "");
     const cmd = { codex: "codex", gemini: "gemini", claude: "claude", openclaw: "openclaw" }[name] || name;
     return new Promise((resolve, reject) => {
-      execFile(cmd, ["--version"], { timeout: 5000 }, (err) => {
+      execFile(cmd, ["--version"], { timeout: 5000, shell: IS_WIN }, (err) => {
         if (err) reject(new Error(`${cmd} CLI 未安装（npm install -g ${{
           codex: "@openai/codex", gemini: "@google/gemini-cli", claude: "@anthropic-ai/claude-code", openclaw: "openclaw"
         }[name] || cmd}）`));
@@ -161,7 +164,7 @@ function runCodex(prompt, imagePaths = []) {
     for (const img of imagePaths) args.push("-i", img);
     args.push("--", prompt);
 
-    execFile("codex", args, { timeout: 300_000, maxBuffer: 2 * 1024 * 1024, cwd: tmpdir() },
+    execFile("codex", args, { timeout: 300_000, maxBuffer: 2 * 1024 * 1024, cwd: tmpdir(), shell: IS_WIN },
       async (err, stdout, stderr) => {
         try {
           const reply = await readFile(outFile, "utf-8").catch(() => "");
@@ -177,7 +180,7 @@ function runCodex(prompt, imagePaths = []) {
 
 function runGemini(prompt) {
   return new Promise((resolve, reject) => {
-    const child = spawn("gemini", [], { cwd: tmpdir(), stdio: ["pipe", "pipe", "pipe"], timeout: 300_000 });
+    const child = spawn("gemini", [], { cwd: tmpdir(), stdio: ["pipe", "pipe", "pipe"], timeout: 300_000, shell: IS_WIN });
     let stdout = "", stderr = "";
     child.stdout.on("data", (d) => (stdout += d));
     child.stderr.on("data", (d) => (stderr += d));
@@ -197,6 +200,7 @@ function runClaude(prompt) {
     const child = spawn("claude", ["--print", prompt], {
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 300_000,
+      shell: IS_WIN,
     });
     let stdout = "", stderr = "";
     child.stdout.on("data", (d) => (stdout += d));
@@ -218,6 +222,7 @@ function runOpenClaw(prompt) {
       cwd: tmpdir(),
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 300_000,
+      shell: IS_WIN,
     });
     let stdout = "", stderr = "";
     child.stdout.on("data", (d) => (stdout += d));
