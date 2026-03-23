@@ -185,7 +185,7 @@ function runGemini(prompt, imagePaths = []) {
   return new Promise((resolve, reject) => {
     const imageRefs = imagePaths.map((p) => `@${p.replace(/\\/g, "/")}`).join(" ");
     const fullPrompt = imageRefs ? `${imageRefs}\n${prompt}` : prompt;
-    const args = ["-p", fullPrompt, "-y", "-o", "text"];
+    const args = ["-p", fullPrompt, "-y", "-o", "json"];
     if (imagePaths.length > 0) {
       const dirs = [...new Set(imagePaths.map((p) => dirname(p)))];
       for (const dir of dirs) args.push("--include-directories", dir);
@@ -195,8 +195,14 @@ function runGemini(prompt, imagePaths = []) {
     child.stdout.on("data", (d) => (stdout += d));
     child.stderr.on("data", (d) => (stderr += d));
     child.on("close", (code) => {
-      if (stdout.trim()) resolve(stdout.trim());
-      else if (code !== 0) reject(new Error((stderr || `exit code ${code}`).trim().slice(0, 300)));
+      if (stdout.trim()) {
+        try {
+          const parsed = JSON.parse(stdout.trim());
+          resolve(parsed.response?.trim() || stdout.trim());
+        } catch {
+          resolve(stdout.trim());
+        }
+      } else if (code !== 0) reject(new Error((stderr || `exit code ${code}`).trim().slice(0, 300)));
       else resolve("(empty response)");
     });
     child.on("error", (err) => reject(new Error(`gemini CLI 未安装: ${err.message}`)));
