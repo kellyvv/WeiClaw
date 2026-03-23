@@ -80,7 +80,7 @@ export async function downloadMediaToFile(encryptQueryParam, aesKeyBase64, ext =
  */
 export async function uploadImageWithThumb(filePath, toUserId, token) {
   const { buildHeaders, BASE_URL } = await import("./weixin.mjs");
-  const { execFileSync } = await import("child_process");
+  const { execFileSync } = await import("node:child_process");
 
   const plaintext = await readFile(filePath);
   const rawsize = plaintext.length;
@@ -183,7 +183,7 @@ export async function uploadImageWithThumb(filePath, toUserId, token) {
  */
 export async function uploadVideoWithThumb(filePath, toUserId, token) {
   const { buildHeaders, BASE_URL } = await import("./weixin.mjs");
-  const { execFileSync } = await import("child_process");
+  const { execFileSync } = await import("node:child_process");
 
   const plaintext = await readFile(filePath);
   const rawsize = plaintext.length;

@@ -4,7 +4,7 @@ import {
   loadCredentials, loginWithQR, getUpdates,
   sendMessage, sendImageByUrl, sendVideoByUrl,
   extractText, extractMedia,
-  getConfig, sendTyping,
+  getConfig, sendTyping, buildHeaders, BASE_URL,
 } from "./weixin.mjs";
 import { downloadAndDecrypt, downloadMediaToFile, uploadToCdn } from "./cdn.mjs";
 import { callAgentAuto, checkAgent } from "./agent-adapter.mjs";
@@ -130,8 +130,6 @@ export async function start(agents, defaultAgent, { port = 9099 } = {}) {
       try {
         const { execFileSync } = await import("node:child_process");
         const { statSync, writeFileSync } = await import("node:fs");
-        const { uploadToCdn } = await import("./cdn.mjs");
-        const { buildHeaders, BASE_URL: baseUrl } = await import("./weixin.mjs");
 
         let audioFile = audioSrc;
         if (audioSrc.startsWith("http://") || audioSrc.startsWith("https://")) {
@@ -166,7 +164,7 @@ export async function start(agents, defaultAgent, { port = 9099 } = {}) {
           },
           base_info: {},
         });
-        await fetch(`${baseUrl}/ilink/bot/sendmessage`, {
+        await fetch(`${BASE_URL}/ilink/bot/sendmessage`, {
           method: "POST", headers: buildHeaders(creds.token, body), body,
         });
         console.log(pc.green(`→ [语音] 已发送 (${durationMs}ms)`));
@@ -246,6 +244,7 @@ export async function start(agents, defaultAgent, { port = 9099 } = {}) {
         if (bodySize > 1_048_576) { // 1MB limit
           res.writeHead(413, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "body too large (max 1MB)" }));
+          req.destroy();
           return;
         }
         body += chunk;
