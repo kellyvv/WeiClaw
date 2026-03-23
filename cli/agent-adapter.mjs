@@ -151,7 +151,7 @@ async function callCLI(cliUrl, messages) {
     if (name === "codex") return await runCodex(prompt, imagePaths);
     if (name === "gemini") return await runGemini(prompt, imagePaths);
     if (name === "claude") return await runClaude(prompt, imagePaths);
-    if (name === "opencode") return await runOpenCode(prompt);
+    if (name === "opencode") return await runOpenCode(prompt, imagePaths);
     if (name === "openclaw") return await runOpenClaw(prompt);
     throw new Error(`未知的内置 CLI Agent: ${name}`);
   } finally {
@@ -239,9 +239,10 @@ function runClaude(prompt, imagePaths = []) {
   });
 }
 
-function runOpenCode(prompt) {
+function runOpenCode(prompt, imagePaths = []) {
   return new Promise((resolve, reject) => {
     const args = ["run", prompt];
+    for (const img of imagePaths) args.push("-f", img);
     const child = crossSpawn("opencode", args, {
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 300_000,
