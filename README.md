@@ -75,11 +75,11 @@ nvm install 22
 brew install python3       # macOS
 apt install python3 python3-pip  # Linux
 
-# 3. ffmpeg（语音 / 视频发送）
+# 3. ffmpeg
 brew install ffmpeg        # macOS
 apt install ffmpeg         # Linux
 
-# 4. pilk（语音 SILK 转码）
+# 4. pilk
 pip install pilk
 ```
 
