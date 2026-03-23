@@ -10,7 +10,7 @@
  */
 
 import crypto from "node:crypto";
-import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync, copyFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { homedir, tmpdir } from "node:os";
 
@@ -23,9 +23,15 @@ const BOT_TYPE = "3";
 
 const CRED_DIR = resolve(homedir(), ".weiclaw");
 const CRED_FILE = resolve(CRED_DIR, "credentials.json");
+const LEGACY_CRED_FILE = resolve(homedir(), ".wechat-to-anything", "credentials.json");
 
 export function loadCredentials() {
   try {
+    // 新路径找不到时，自动迁移旧版凭证
+    if (!existsSync(CRED_FILE) && existsSync(LEGACY_CRED_FILE)) {
+      mkdirSync(CRED_DIR, { recursive: true });
+      copyFileSync(LEGACY_CRED_FILE, CRED_FILE);
+    }
     if (!existsSync(CRED_FILE)) return null;
     const data = JSON.parse(readFileSync(CRED_FILE, "utf-8"));
     if (!data.token) return null;
