@@ -1,8 +1,8 @@
 # wechat-to-anything
 
-> 把微信变成任何 AI Agent 的前端。零依赖，一条命令。
+> 一条命令，把微信变成任何 AI Agent 的前端。
 >
-> ⭐ 如果这个项目对你有帮助，请给个 Star！本项目仅用于技术学习和交流，开源不易。
+> ⭐ 如果这个项目对你有帮助，请给个 Star！
 
 **全网首个**支持微信与 AI Agent 全模态双向通信的开源项目 —— 文本、图片、语音、视频、文件，发送和接收全覆盖。
 
@@ -10,70 +10,56 @@
   <img src="docs/wechat-image-send.png" width="250" alt="Agent 发送文件、图片、语音" />
   <img src="docs/wechat-image-receive.png" width="250" alt="Agent 发送图片、视频、语音" />
   <a href="https://github.com/kellyvv/wechat-to-anything/raw/main/docs/wechat-voice-demo.mp4">
-    <img src="docs/wechat-voice-demo.gif" width="250" alt="语音发送演示（点击播放有声版）" />
+    <img src="docs/wechat-voice-demo.gif" width="250" alt="语音演示（点击播放有声版）" />
   </a>
 </p>
 
-## 原理
+## 特性
 
-```
-微信 ←→ ilinkai API (腾讯) ←→ wechat-to-anything ←→ 你的 Agent (HTTP)
-```
+- 🔌 **零依赖接入** — `npx` 一条命令，无需 clone、无需配置
+- 🧠 **Agent 无关** — 支持任何 OpenAI 兼容 API（Codex / Gemini / Claude / 自建）
+- 📡 **全模态** — 文本、图片、语音、视频、文件，双向全覆盖
+- 🤖 **多 Agent** — 同时接入多个 Agent，`@` 路由切换
+- ⌨️ **打字指示器** — Agent 思考时显示"对方正在输入"
 
-直接调用腾讯 ilinkai 接口收发微信消息，无中间层。你的 Agent 只需暴露一个 OpenAI 兼容的 HTTP 接口（`POST /v1/chat/completions`），任何语言都行。
+### 全模态支持矩阵
 
-### 多种模态支持
-
-| 方向 | 图片 | 语音 | 视频 | 文件 |
-|---|---|---|---|---|
-| **微信 → Agent** | ✅发送&预览 | ✅发送&预览  | ✅发送&收听 | ✅发送&接收 |
-| **Agent → 微信** | ✅发送&预览 | ✅发送&预览  | ✅发送&收听 | ✅发送&接收 |
-
-## 前置条件
-
-- Node.js >= 22（`nvm install 22`）
+| 模态 | 微信 → Agent | Agent → 微信 |
+|------|:---:|:---:|
+| 📝 文本 | ✅ | ✅ |
+| 📷 图片 | ✅ 自动识别 | ✅ HD 原图 |
+| 🎤 语音 | ✅ 语音转文字 | ✅ 语音气泡 |
+| 🎬 视频 | ✅ 自动接收 | ✅ 带缩略图 |
+| 📄 文件 | ✅ 提取内容 | ✅ 可下载 |
 
 ## 快速开始
 
 ```bash
-# 一条命令，选你喜欢的 Agent：
+# 选你喜欢的 Agent：
 npx wechat-to-anything --codex     # OpenAI Codex
 npx wechat-to-anything --gemini    # Google Gemini
 npx wechat-to-anything --claude    # Claude Code
 npx wechat-to-anything --openclaw  # OpenClaw
 
-# 多 Agent 同时用：
-npx wechat-to-anything --codex --gemini
+# 或直接传 URL：
+npx wechat-to-anything http://your-agent:8000/v1
 ```
 
-> 需要先安装对应 CLI：`npm i -g @openai/codex` / `@google/gemini-cli` / `@anthropic-ai/claude-code` / `openclaw`
+> 前置条件：Node.js >= 22（`nvm install 22`）
 >
-> 也支持直接传 URL：`npx wechat-to-anything http://your-agent:8000/v1`
+> 首次使用：终端弹出二维码 → 微信扫码 → 完成。之后自动复用登录。
 
-### 接入 OpenClaw
+## 原理
 
-```bash
-# 1. 安装并配置 OpenClaw
-npm i -g openclaw
-openclaw configure         # 设置模型（如 Gemini / OpenAI）
-
-# 2. 启动 Gateway
-openclaw gateway
-
-# 3. 启动桥（另一个终端）
-npx wechat-to-anything --openclaw
+```
+微信用户 ←→ 腾讯 ilinkai API ←→ wechat-to-anything ←→ 你的 Agent (HTTP)
 ```
 
-> OpenClaw 的 Gateway 需要先配好模型 provider（运行 `openclaw configure`）。
-> 如果 OpenClaw 已有 `openclaw-weixin` 插件，需先禁用以避免消息冲突。
+直接调用腾讯 ilinkai 接口收发微信消息，无中间层、无逆向、无网页版。Agent 只需暴露一个 OpenAI 兼容的 HTTP 接口。
 
-### 首次使用
+## 接入自己的 Agent
 
-终端会弹出二维码 → 微信扫码 → 完成。之后自动复用登录凭证。
-
-## 接入你自己的 Agent
-
-暴露 `POST /v1/chat/completions` 即可，任何语言：
+任何语言，暴露 `POST /v1/chat/completions` 即可：
 
 ```python
 @app.post("/v1/chat/completions")
@@ -83,38 +69,20 @@ def chat(request):
     return {"choices": [{"message": {"role": "assistant", "content": reply}}]}
 ```
 
-然后 `npx wechat-to-anything http://your-agent:8000/v1`。
+然后：`npx wechat-to-anything http://your-agent:8000/v1`
 
-## 多 Agent 模式
+## 多媒体协议
 
-同时接入多个 Agent，通过 `@` 前缀路由消息。支持 OpenAI 兼容格式和 [ACP (Agent Communication Protocol)](https://agentcommunicationprotocol.dev/) 两种协议：
+Agent 回复中包含特定格式即可自动发送多媒体：
 
-```bash
-npx wechat-to-anything \
-  --agent codex=http://localhost:3001/v1 \
-  --agent gemini=http://localhost:3002/v1 \
-  --agent bee=acp://localhost:8000/chat \
-  --default codex
-```
+| 类型 | Agent 回复格式 | 说明 |
+|------|--------------|------|
+| 图片 | `![描述](URL或路径)` | 支持 URL、本地路径、data URI |
+| 语音 | `[audio:路径或URL]` | MP3/WAV/OGG，需 `ffmpeg` + `pilk` |
+| 视频 | `[video:路径或URL]` | 需 `ffmpeg` |
+| 文件 | `[file:路径或URL]` | 任意文件类型 |
 
-> `http://` → OpenAI 格式，`acp://` → ACP 协议，自动识别。
-
-微信里使用：
-
-| 消息 | 效果 |
-|---|---|
-| `你好` | 发给默认 Agent |
-| `@codex 写个排序` | 路由到 Codex |
-| `@gemini 审查代码` | 路由到 Gemini |
-| `@bee 分析数据` | 路由到 ACP Agent |
-| `@list` | 查看已注册的 Agent |
-| `@切换 gemini` | 切换默认 Agent |
-
-多 Agent 模式下回复自动带 `[agentName]` 前缀标识来源。每个用户独立维护默认 Agent。
-
-## 多媒体格式
-
-**图片（微信 → Agent）**：遵循 [OpenAI Vision API](https://platform.openai.com/docs/guides/vision)，`content` 为数组：
+**图片接收**（微信 → Agent）遵循 [OpenAI Vision API](https://platform.openai.com/docs/guides/vision)：
 
 ```json
 {
@@ -128,34 +96,31 @@ npx wechat-to-anything \
 }
 ```
 
-**图片（Agent → 微信）**：回复中包含 `![desc](https://...)` 自动发图（HD 原图质量，自动生成缩略图）。支持 URL、本地路径、data URI。
+> 示例：[image-test.mjs](examples/image-test.mjs) · [voice-test.mjs](examples/voice-test.mjs) · [video-test-local.mjs](examples/video-test-local.mjs) · [file-test.mjs](examples/file-test.mjs)
 
-**语音（Agent → 微信）**：回复中包含 `[audio:path 或 URL]` 自动发语音气泡。支持 MP3、WAV、OGG 等。需要 `ffmpeg` 和 `pip install pilk`。
+## 多 Agent 模式
 
-```python
-@app.post("/v1/chat/completions")
-def chat(request):
-    audio_path = your_tts(message)  # → /tmp/reply.mp3
-    reply = f"[audio:{audio_path}]\n这是文字版内容"
-    return {"choices": [{"message": {"role": "assistant", "content": reply}}]}
+同时接入多个 Agent，`@` 前缀路由。支持 OpenAI 格式和 [ACP 协议](https://agentcommunicationprotocol.dev/)：
+
+```bash
+npx wechat-to-anything \
+  --agent codex=http://localhost:3001/v1 \
+  --agent gemini=http://localhost:3002/v1 \
+  --agent bee=acp://localhost:8000/chat \
+  --default codex
 ```
 
-**视频（Agent → 微信）**：回复中包含 `[video:path 或 URL]` 自动发视频消息（含缩略图）。需要 `ffmpeg`。
-
-```python
-@app.post("/v1/chat/completions")
-def chat(request):
-    reply = "[video:/tmp/demo.mp4]\n这是视频描述"
-    return {"choices": [{"message": {"role": "assistant", "content": reply}}]}
-```
-
-> 示例：[examples/image-test.mjs](examples/image-test.mjs) · [examples/voice-test.mjs](examples/voice-test.mjs) · [examples/video-test-local.mjs](examples/video-test-local.mjs) · [examples/file-test.mjs](examples/file-test.mjs)
+| 微信消息 | 效果 |
+|---|---|
+| `你好` | 发给默认 Agent |
+| `@codex 写个排序` | 路由到 Codex |
+| `@gemini 审查代码` | 路由到 Gemini |
+| `@list` | 查看所有 Agent |
+| `@切换 gemini` | 切换默认 |
 
 ## 凭证
 
 登录凭证保存在 `~/.wechat-to-anything/credentials.json`，删除即可重新登录。
-
-
 
 ## Star History
 
