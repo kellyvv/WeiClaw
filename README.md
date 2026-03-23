@@ -62,9 +62,17 @@ npx wechat-to-anything --openclaw  # OpenClaw
 npx wechat-to-anything http://your-agent:8000/v1
 ```
 
-> 前置条件：Node.js >= 22（`nvm install 22`）
->
 > 首次使用：终端弹出二维码 → 微信扫码 → 完成。之后自动复用登录。
+
+### 环境依赖
+
+| 依赖 | 用途 | 安装 |
+|------|------|------|
+| **Node.js >= 22** | 必需 | `nvm install 22` |
+| **ffmpeg** | 语音 / 视频发送 | `brew install ffmpeg`（macOS）<br>`apt install ffmpeg`（Linux） |
+| **pilk** | 语音发送（SILK 转码） | `pip install pilk` |
+
+> 只发文本和图片？只需 Node.js 即可，`ffmpeg` 和 `pilk` 是可选的。
 
 ## 原理
 
