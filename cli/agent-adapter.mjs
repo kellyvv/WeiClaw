@@ -1,11 +1,13 @@
 /**
  * Agent 调用适配器
- * 
+ *
  * 根据 URL scheme 自动选择协议：
  * - http:// / https:// → OpenAI 兼容格式
  * - acp://             → ACP (Agent Communication Protocol)
+ * - cli://claude       → 内置 Claude Code CLI 适配器
  * - cli://codex        → 内置 Codex CLI 适配器
  * - cli://gemini       → 内置 Gemini CLI 适配器
+ * - cli://opencode     → 内置 OpenCode CLI 适配器
  */
 
 import { writeFile, readFile, unlink, mkdir } from "node:fs/promises";
@@ -35,8 +37,8 @@ export async function checkAgent(url) {
   }
   if (url.startsWith("cli://")) {
     const name = url.replace("cli://", "");
-    const cmd = { codex: "codex", gemini: "gemini", claude: "claude", openclaw: "openclaw" }[name] || name;
-    const installHint = { codex: "@openai/codex", gemini: "@google/gemini-cli", claude: "@anthropic-ai/claude-code", openclaw: "openclaw" }[name] || cmd;
+    const cmd = { codex: "codex", gemini: "gemini", claude: "claude", opencode: "opencode", openclaw: "openclaw" }[name] || name;
+    const installHint = { codex: "@openai/codex", gemini: "@google/gemini-cli", claude: "@anthropic-ai/claude-code", opencode: "opencode-ai", openclaw: "openclaw" }[name] || cmd;
     return new Promise((resolve, reject) => {
       const child = crossSpawn(cmd, ["--version"], { timeout: 5000 });
       // 只有 ENOENT（找不到二进制）才说明未安装；
@@ -149,6 +151,7 @@ async function callCLI(cliUrl, messages) {
     if (name === "codex") return await runCodex(prompt, imagePaths);
     if (name === "gemini") return await runGemini(prompt, imagePaths);
     if (name === "claude") return await runClaude(prompt, imagePaths);
+    if (name === "opencode") return await runOpenCode(prompt);
     if (name === "openclaw") return await runOpenClaw(prompt);
     throw new Error(`未知的内置 CLI Agent: ${name}`);
   } finally {
@@ -233,6 +236,26 @@ function runClaude(prompt, imagePaths = []) {
       else resolve(stdout.trim() || "(empty response)");
     });
     child.on("error", (err) => reject(new Error(`claude CLI 未安装: ${err.message}`)));
+  });
+}
+
+function runOpenCode(prompt) {
+  return new Promise((resolve, reject) => {
+    const args = ["run", prompt];
+    const child = crossSpawn("opencode", args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 300_000,
+      cwd: tmpdir(),
+    });
+    let stdout = "", stderr = "";
+    child.stdout.on("data", (d) => (stdout += d));
+    child.stderr.on("data", (d) => (stderr += d));
+    child.on("close", (code) => {
+      const clean = (s) => s.replace(/\x1b\[[0-9;]*m/g, "").trim();
+      if (code !== 0) reject(new Error((clean(stderr + stdout) || `exit code ${code}`).slice(0, 300)));
+      else resolve(clean(stdout) || "(empty response)");
+    });
+    child.on("error", (err) => reject(new Error(`opencode CLI 未安装（npm install -g opencode-ai）: ${err.message}`)));
   });
 }
 

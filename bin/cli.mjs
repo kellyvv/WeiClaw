@@ -18,6 +18,7 @@ ${pc.bold("用法:")}
   npx weiclaw ${pc.green("--codex")}
   npx weiclaw ${pc.green("--gemini")}
   npx weiclaw ${pc.green("--claude")}
+  npx weiclaw ${pc.green("--opencode")}
   npx weiclaw ${pc.green("--openclaw")}
   npx weiclaw ${pc.green("--codex --gemini --claude")}    ${pc.dim("多 Agent")}
 
@@ -29,6 +30,7 @@ ${pc.bold("参数:")}
   --codex               ${pc.dim("内置 Codex CLI（需先 npm i -g @openai/codex）")}
   --gemini              ${pc.dim("内置 Gemini CLI（需先 npm i -g @google/gemini-cli）")}
   --claude              ${pc.dim("内置 Claude Code CLI（需先 npm i -g @anthropic-ai/claude-code）")}
+  --opencode            ${pc.dim("内置 OpenCode CLI（需先 npm i -g opencode-ai）")}
   --openclaw            ${pc.dim("内置 OpenClaw（需先 npm i -g openclaw）")}
   --agent ${pc.dim("name=url")}    ${pc.dim("注册自定义 Agent")}
   --default ${pc.dim("name")}      ${pc.dim("设置默认 Agent")}
@@ -56,6 +58,9 @@ while (i < args.length) {
     i++;
   } else if (args[i] === "--claude") {
     agents.set("claude", "cli://claude");
+    i++;
+  } else if (args[i] === "--opencode") {
+    agents.set("opencode", "cli://opencode");
     i++;
   } else if (args[i] === "--openclaw") {
     agents.set("openclaw", "cli://openclaw");
