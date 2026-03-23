@@ -7,8 +7,8 @@
 **全网首个**支持微信与 AI Agent 全模态双向通信的开源项目 —— 文本、图片、语音、视频、文件，发送和接收全覆盖。
 
 <p align="center">
-  <img src="docs/wechat-image-send.png" width="250" alt="发送图片给 Agent 识别" />
-  <img src="docs/wechat-image-receive.png" width="250" alt="Agent 发送图片到微信" />
+  <img src="docs/wechat-image-send.png" width="250" alt="Agent 发送文件、图片、语音" />
+  <img src="docs/wechat-image-receive.png" width="250" alt="Agent 发送图片、视频、语音" />
   <a href="https://github.com/kellyvv/wechat-to-anything/raw/main/docs/wechat-voice-demo.mp4">
     <img src="docs/wechat-voice-demo.gif" width="250" alt="语音发送演示（点击播放有声版）" />
   </a>
