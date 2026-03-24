@@ -246,7 +246,7 @@ function runOpenCode(prompt, imagePaths = []) {
     const child = crossSpawn("opencode", args, {
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 300_000,
-      cwd: tmpdir(),
+      cwd: process.cwd(),
     });
     let stdout = "", stderr = "";
     child.stdout.on("data", (d) => (stdout += d));
