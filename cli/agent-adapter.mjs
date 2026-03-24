@@ -241,7 +241,7 @@ function runClaude(prompt, imagePaths = []) {
 
 function runOpenCode(prompt, imagePaths = []) {
   return new Promise((resolve, reject) => {
-    const args = ["run", prompt];
+    const args = ["run", "-c", prompt];
     for (const img of imagePaths) args.push("-f", img);
     const child = crossSpawn("opencode", args, {
       stdio: ["ignore", "pipe", "pipe"],
